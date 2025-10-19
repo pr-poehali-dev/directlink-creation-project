@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -28,11 +28,20 @@ interface Message {
 const Index = () => {
   const [userId] = useState('ocean-92-star');
   const [nickname, setNickname] = useState('Иван');
-  const [currentView, setCurrentView] = useState<'home' | 'chat' | 'profile'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'chat' | 'profile' | 'video'>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [newContactId, setNewContactId] = useState('');
   const [messageText, setMessageText] = useState('');
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [isVideoCall, setIsVideoCall] = useState(false);
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [callDuration, setCallDuration] = useState(0);
+  
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const callTimerRef = useRef<number | null>(null);
 
   const [contacts, setContacts] = useState<Contact[]>([
     { id: 'alpha-7531-bravo', nickname: 'Мария', online: true },
@@ -83,6 +92,93 @@ const Index = () => {
     setSelectedContact(contact);
     setCurrentView('chat');
   };
+
+  const startVideoCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720 },
+        audio: true
+      });
+      
+      localStreamRef.current = stream;
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      }
+      
+      setIsVideoCall(true);
+      setCurrentView('video');
+      
+      callTimerRef.current = window.setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+      
+      toast.success('Видеозвонок начат');
+    } catch (error) {
+      toast.error('Не удалось получить доступ к камере/микрофону');
+      console.error('Error accessing media devices:', error);
+    }
+  };
+
+  const endVideoCall = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+    
+    setIsVideoCall(false);
+    setCallDuration(0);
+    setCurrentView('chat');
+    toast.info('Видеозвонок завершён');
+  };
+
+  const toggleMic = () => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMicOn(audioTrack.enabled);
+        toast.info(audioTrack.enabled ? 'Микрофон включён' : 'Микрофон выключен');
+      }
+    }
+  };
+
+  const toggleCamera = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsCameraOn(videoTrack.enabled);
+        toast.info(videoTrack.enabled ? 'Камера включена' : 'Камера выключена');
+      }
+    }
+  };
+
+  const formatCallDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1625] via-[#261940] to-[#0f1419] flex items-center justify-center p-4">
@@ -227,7 +323,12 @@ const Index = () => {
                     {selectedContact.online ? 'в сети' : 'не в сети'}
                   </p>
                 </div>
-                <Button size="icon" variant="ghost" className="hover:bg-white/10">
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="hover:bg-white/10"
+                  onClick={startVideoCall}
+                >
                   <Icon name="Video" size={20} />
                 </Button>
               </div>
@@ -282,6 +383,69 @@ const Index = () => {
                 </div>
               </div>
             </Card>
+          </div>
+        )}
+
+        {currentView === 'video' && selectedContact && (
+          <div className="animate-scale-in fixed inset-0 z-50 bg-black">
+            <div className="relative w-full h-full">
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+
+              <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+                <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-3 flex items-center gap-3">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-white font-medium">{selectedContact.nickname}</span>
+                  <span className="text-white/70 text-sm">{formatCallDuration(callDuration)}</span>
+                </div>
+              </div>
+
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute bottom-24 right-6 w-32 h-48 rounded-2xl border-2 border-white/20 shadow-2xl object-cover"
+              />
+
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4">
+                <Button
+                  onClick={toggleMic}
+                  size="icon"
+                  className={`w-14 h-14 rounded-full ${
+                    isMicOn 
+                      ? 'bg-white/20 hover:bg-white/30' 
+                      : 'bg-red-500 hover:bg-red-600'
+                  } backdrop-blur-md`}
+                >
+                  <Icon name={isMicOn ? 'Mic' : 'MicOff'} size={24} />
+                </Button>
+
+                <Button
+                  onClick={endVideoCall}
+                  size="icon"
+                  className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600"
+                >
+                  <Icon name="PhoneOff" size={28} />
+                </Button>
+
+                <Button
+                  onClick={toggleCamera}
+                  size="icon"
+                  className={`w-14 h-14 rounded-full ${
+                    isCameraOn 
+                      ? 'bg-white/20 hover:bg-white/30' 
+                      : 'bg-red-500 hover:bg-red-600'
+                  } backdrop-blur-md`}
+                >
+                  <Icon name={isCameraOn ? 'Video' : 'VideoOff'} size={24} />
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
