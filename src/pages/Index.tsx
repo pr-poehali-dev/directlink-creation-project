@@ -1,11 +1,346 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import Icon from '@/components/ui/icon';
+import { toast } from 'sonner';
+
+interface Contact {
+  id: string;
+  nickname: string;
+  avatar?: string;
+  online: boolean;
+}
+
+interface Message {
+  id: string;
+  text: string;
+  sender: 'me' | 'contact';
+  time: string;
+  status: 'sent' | 'delivered' | 'read';
+}
 
 const Index = () => {
+  const [userId] = useState('ocean-92-star');
+  const [nickname, setNickname] = useState('Иван');
+  const [currentView, setCurrentView] = useState<'home' | 'chat' | 'profile'>('home');
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [newContactId, setNewContactId] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+
+  const [contacts, setContacts] = useState<Contact[]>([
+    { id: 'alpha-7531-bravo', nickname: 'Мария', online: true },
+    { id: 'delta-4298-echo', nickname: 'Алексей', online: false },
+    { id: 'gamma-1156-foxtrot', nickname: 'Екатерина', online: true },
+  ]);
+
+  const [messages, setMessages] = useState<Message[]>([
+    { id: '1', text: 'Привет! Как дела?', sender: 'contact', time: '14:32', status: 'read' },
+    { id: '2', text: 'Отлично! А у тебя?', sender: 'me', time: '14:33', status: 'read' },
+    { id: '3', text: 'Всё хорошо, спасибо 😊', sender: 'contact', time: '14:35', status: 'delivered' },
+  ]);
+
+  const copyUserId = () => {
+    navigator.clipboard.writeText(userId);
+    toast.success('ID скопирован в буфер обмена');
+  };
+
+  const addContact = () => {
+    if (newContactId.trim()) {
+      const newContact: Contact = {
+        id: newContactId,
+        nickname: 'Новый контакт',
+        online: false,
+      };
+      setContacts([...contacts, newContact]);
+      setNewContactId('');
+      setIsAddContactOpen(false);
+      toast.success('Контакт добавлен');
+    }
+  };
+
+  const sendMessage = () => {
+    if (messageText.trim()) {
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        text: messageText,
+        sender: 'me',
+        time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        status: 'sent',
+      };
+      setMessages([...messages, newMessage]);
+      setMessageText('');
+    }
+  };
+
+  const openChat = (contact: Contact) => {
+    setSelectedContact(contact);
+    setCurrentView('chat');
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4 color-black text-black">Добро пожаловать!</h1>
-        <p className="text-xl text-gray-600">тут будет отображаться ваш проект</p>
+    <div className="min-h-screen bg-gradient-to-br from-[#1a1625] via-[#261940] to-[#0f1419] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {currentView === 'home' && (
+          <div className="animate-fade-in">
+            <Card className="bg-card/50 backdrop-blur-xl border-border/50 shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-primary via-secondary to-accent p-6 text-center">
+                <h1 className="text-2xl font-bold text-white mb-2">Ichiev Network</h1>
+                <p className="text-white/80 text-sm">Приватная социальная сеть</p>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-4 border border-primary/30">
+                  <p className="text-muted-foreground text-sm mb-2">Ваш уникальный ID</p>
+                  <div className="flex items-center gap-3">
+                    <code className="flex-1 text-lg font-semibold text-white bg-black/30 px-4 py-2 rounded-lg">
+                      {userId}
+                    </code>
+                    <Button
+                      onClick={copyUserId}
+                      size="icon"
+                      variant="ghost"
+                      className="hover:bg-white/10"
+                    >
+                      <Icon name="Copy" size={20} />
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Контакты</h2>
+                    <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" className="bg-gradient-to-r from-primary to-secondary hover:opacity-90">
+                          <Icon name="UserPlus" size={16} className="mr-2" />
+                          Добавить
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-card border-border">
+                        <DialogHeader>
+                          <DialogTitle>Добавить контакт</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 pt-4">
+                          <div>
+                            <Label htmlFor="contact-id">ID пользователя</Label>
+                            <Input
+                              id="contact-id"
+                              placeholder="alpha-7531-bravo"
+                              value={newContactId}
+                              onChange={(e) => setNewContactId(e.target.value)}
+                              className="mt-2"
+                            />
+                          </div>
+                          <Button onClick={addContact} className="w-full bg-gradient-to-r from-primary to-secondary">
+                            Отправить запрос
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  <ScrollArea className="h-80">
+                    <div className="space-y-2">
+                      {contacts.map((contact) => (
+                        <Card
+                          key={contact.id}
+                          onClick={() => openChat(contact)}
+                          className="p-4 cursor-pointer hover:bg-primary/10 transition-all duration-300 hover:scale-[1.02] border-border/50 bg-card/30"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <Avatar>
+                                <AvatarImage src={contact.avatar} />
+                                <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
+                                  {contact.nickname[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              {contact.online && (
+                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium">{contact.nickname}</p>
+                              <p className="text-sm text-muted-foreground">{contact.id}</p>
+                            </div>
+                            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-border/50 flex justify-around">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView('home')}
+                  className="flex-col h-auto py-2 hover:bg-primary/10"
+                >
+                  <Icon name="Home" size={24} className="mb-1" />
+                  <span className="text-xs">Главная</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView('profile')}
+                  className="flex-col h-auto py-2 hover:bg-primary/10"
+                >
+                  <Icon name="User" size={24} className="mb-1" />
+                  <span className="text-xs">Профиль</span>
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {currentView === 'chat' && selectedContact && (
+          <div className="animate-slide-up">
+            <Card className="bg-card/50 backdrop-blur-xl border-border/50 shadow-2xl overflow-hidden h-[600px] flex flex-col">
+              <div className="bg-gradient-to-r from-primary via-secondary to-accent p-4 flex items-center gap-3">
+                <Button
+                  onClick={() => setCurrentView('home')}
+                  size="icon"
+                  variant="ghost"
+                  className="hover:bg-white/10"
+                >
+                  <Icon name="ArrowLeft" size={20} />
+                </Button>
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={selectedContact.avatar} />
+                  <AvatarFallback className="bg-white/20 text-white">
+                    {selectedContact.nickname[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-semibold text-white">{selectedContact.nickname}</p>
+                  <p className="text-xs text-white/70">
+                    {selectedContact.online ? 'в сети' : 'не в сети'}
+                  </p>
+                </div>
+                <Button size="icon" variant="ghost" className="hover:bg-white/10">
+                  <Icon name="Video" size={20} />
+                </Button>
+              </div>
+
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'} animate-scale-in`}
+                    >
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                          message.sender === 'me'
+                            ? 'bg-gradient-to-r from-primary to-secondary text-white'
+                            : 'bg-muted text-foreground'
+                        }`}
+                      >
+                        <p className="text-sm">{message.text}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <p className="text-xs opacity-70">{message.time}</p>
+                          {message.sender === 'me' && (
+                            <Icon
+                              name={message.status === 'read' ? 'CheckCheck' : 'Check'}
+                              size={14}
+                              className="opacity-70"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <div className="p-4 border-t border-border/50">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Введите сообщение..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    size="icon"
+                    className="bg-gradient-to-r from-primary to-secondary"
+                  >
+                    <Icon name="Send" size={20} />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {currentView === 'profile' && (
+          <div className="animate-fade-in">
+            <Card className="bg-card/50 backdrop-blur-xl border-border/50 shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-primary via-secondary to-accent p-6 text-center">
+                <Avatar className="w-24 h-24 mx-auto mb-4 border-4 border-white/20">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-white/20 text-white text-3xl">
+                    {nickname[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <h2 className="text-2xl font-bold text-white">{nickname}</h2>
+                <p className="text-white/70 text-sm mt-1">{userId}</p>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div>
+                  <Label htmlFor="nickname">Никнейм</Label>
+                  <Input
+                    id="nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    className="mt-2"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Icon name="Shield" size={20} className="text-primary" />
+                      <span className="text-sm">Шифрование end-to-end</span>
+                    </div>
+                    <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50">
+                      Активно
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Icon name="Users" size={20} className="text-secondary" />
+                      <span className="text-sm">Контактов</span>
+                    </div>
+                    <Badge variant="outline">{contacts.length}</Badge>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => setCurrentView('home')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Назад
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
