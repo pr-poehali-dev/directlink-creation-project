@@ -1,0 +1,47 @@
+{
+  "tests": [
+    {
+      "name": "Проверка статуса WebSocket сервера",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "status": "WebSocket сервер работает"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Подключение пользователя к WebSocket",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "type": "connect",
+        "userId": "ocean-92-star"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "type": "connected",
+        "userId": "ocean-92-star"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Отправка сообщения через WebSocket",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "type": "message",
+        "from": "ocean-92-star",
+        "to": "alpha-7531-bravo",
+        "text": "Привет!",
+        "time": "14:30"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "type": "message_sent",
+        "from": "ocean-92-star"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

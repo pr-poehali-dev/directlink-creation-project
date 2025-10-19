@@ -42,6 +42,9 @@ const Index = () => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const callTimerRef = useRef<number | null>(null);
+  const wsConnectionRef = useRef<boolean>(false);
+  
+  const WS_URL = 'https://functions.poehali.dev/d21ff742-3104-4563-aec9-0410990b7e2e';
 
   const [contacts, setContacts] = useState<Contact[]>([
     { id: 'alpha-7531-bravo', nickname: 'Мария', online: true },
@@ -74,17 +77,46 @@ const Index = () => {
     }
   };
 
-  const sendMessage = () => {
-    if (messageText.trim()) {
+  const sendMessage = async () => {
+    if (messageText.trim() && selectedContact) {
+      const currentTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
       const newMessage: Message = {
         id: Date.now().toString(),
         text: messageText,
         sender: 'me',
-        time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        time: currentTime,
         status: 'sent',
       };
       setMessages([...messages, newMessage]);
       setMessageText('');
+      
+      try {
+        const response = await fetch(WS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'message',
+            from: userId,
+            to: selectedContact.id,
+            text: messageText,
+            time: currentTime,
+          }),
+        });
+        
+        const result = await response.json();
+        if (result.delivered) {
+          setMessages(msgs => 
+            msgs.map(m => 
+              m.id === newMessage.id ? { ...m, status: 'delivered' } : m
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Ошибка отправки сообщения:', error);
+        toast.error('Не удалось отправить сообщение');
+      }
     }
   };
 
@@ -169,13 +201,53 @@ const Index = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const connectToWebSocket = async () => {
+    if (!wsConnectionRef.current) {
+      try {
+        const response = await fetch(WS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'connect',
+            userId: userId,
+          }),
+        });
+        
+        const result = await response.json();
+        if (result.type === 'connected') {
+          wsConnectionRef.current = true;
+          toast.success('Подключено к серверу сообщений');
+        }
+      } catch (error) {
+        console.error('Ошибка подключения к WebSocket:', error);
+      }
+    }
+  };
+
   useEffect(() => {
+    connectToWebSocket();
+    
     return () => {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
       if (callTimerRef.current) {
         clearInterval(callTimerRef.current);
+      }
+      
+      if (wsConnectionRef.current) {
+        fetch(WS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'disconnect',
+            userId: userId,
+          }),
+        }).catch(console.error);
       }
     };
   }, []);
