@@ -25,9 +25,19 @@ interface Message {
   status: 'sent' | 'delivered' | 'read';
 }
 
+const generateUserId = () => {
+  const words = ['ocean', 'star', 'moon', 'sky', 'sun', 'cloud', 'wave', 'wind', 'fire', 'earth'];
+  const word1 = words[Math.floor(Math.random() * words.length)];
+  const word2 = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(Math.random() * 9999);
+  return `${word1}-${num}-${word2}`;
+};
+
 const Index = () => {
-  const [userId] = useState('ocean-92-star');
-  const [nickname, setNickname] = useState('Иван');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginName, setLoginName] = useState('');
+  const [userId, setUserId] = useState('');
+  const [nickname, setNickname] = useState('');
   const [currentView, setCurrentView] = useState<'home' | 'chat' | 'profile' | 'video'>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [newContactId, setNewContactId] = useState('');
@@ -46,17 +56,9 @@ const Index = () => {
   
   const WS_URL = 'https://functions.poehali.dev/d21ff742-3104-4563-aec9-0410990b7e2e';
 
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: 'alpha-7531-bravo', nickname: 'Мария', online: true },
-    { id: 'delta-4298-echo', nickname: 'Алексей', online: false },
-    { id: 'gamma-1156-foxtrot', nickname: 'Екатерина', online: true },
-  ]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: 'Привет! Как дела?', sender: 'contact', time: '14:32', status: 'read' },
-    { id: '2', text: 'Отлично! А у тебя?', sender: 'me', time: '14:33', status: 'read' },
-    { id: '3', text: 'Всё хорошо, спасибо 😊', sender: 'contact', time: '14:35', status: 'delivered' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const copyUserId = () => {
     navigator.clipboard.writeText(userId);
@@ -226,8 +228,35 @@ const Index = () => {
     }
   };
 
+  const handleLogin = () => {
+    if (loginName.trim()) {
+      const newUserId = generateUserId();
+      setUserId(newUserId);
+      setNickname(loginName);
+      setIsLoggedIn(true);
+      
+      localStorage.setItem('userId', newUserId);
+      localStorage.setItem('nickname', loginName);
+      
+      toast.success(`Добро пожаловать, ${loginName}!`);
+    }
+  };
+
   useEffect(() => {
-    connectToWebSocket();
+    const savedUserId = localStorage.getItem('userId');
+    const savedNickname = localStorage.getItem('nickname');
+    
+    if (savedUserId && savedNickname) {
+      setUserId(savedUserId);
+      setNickname(savedNickname);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn && userId) {
+      connectToWebSocket();
+    }
     
     return () => {
       if (localStreamRef.current) {
@@ -237,7 +266,7 @@ const Index = () => {
         clearInterval(callTimerRef.current);
       }
       
-      if (wsConnectionRef.current) {
+      if (wsConnectionRef.current && userId) {
         fetch(WS_URL, {
           method: 'POST',
           headers: {
@@ -250,7 +279,47 @@ const Index = () => {
         }).catch(console.error);
       }
     };
-  }, []);
+  }, [isLoggedIn, userId]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1a1625] via-[#261940] to-[#0f1419] flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-card/50 backdrop-blur-xl border-border/50 shadow-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-primary via-secondary to-accent p-8 text-center">
+            <h1 className="text-3xl font-bold text-white mb-2">Ichiev Network</h1>
+            <p className="text-white/80">Приватная социальная сеть</p>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="login-name" className="text-lg">Введите ваше имя</Label>
+              <Input
+                id="login-name"
+                placeholder="Например: Иван"
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                className="h-12 text-lg"
+                autoFocus
+              />
+            </div>
+            
+            <Button 
+              onClick={handleLogin} 
+              className="w-full h-12 text-lg bg-gradient-to-r from-primary via-secondary to-accent hover:opacity-90 transition-all"
+              disabled={!loginName.trim()}
+            >
+              Войти
+            </Button>
+            
+            <div className="text-center text-sm text-muted-foreground">
+              После входа вам будет присвоен уникальный ID для общения
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1625] via-[#261940] to-[#0f1419] flex items-center justify-center p-4">
@@ -565,6 +634,24 @@ const Index = () => {
                     <Badge variant="outline">{contacts.length}</Badge>
                   </div>
                 </div>
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => {
+                    localStorage.removeItem('userId');
+                    localStorage.removeItem('nickname');
+                    setIsLoggedIn(false);
+                    setUserId('');
+                    setNickname('');
+                    setContacts([]);
+                    setMessages([]);
+                    toast.info('Вы вышли из аккаунта');
+                  }}
+                >
+                  <Icon name="LogOut" size={20} className="mr-2" />
+                  Выйти из аккаунта
+                </Button>
 
                 <Button
                   onClick={() => setCurrentView('home')}
